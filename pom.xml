@@ -65,6 +65,7 @@
     <module>guava-gwt</module>
     <module>guava-testlib</module>
     <module>guava-tests</module>
+    <module>rate-limiter</module>
   </modules>
   <build>
     <!-- Handle where Guava deviates from Maven defaults -->
@@ -276,6 +277,11 @@
             <artifactId>guava</artifactId>
           </exclusion>
         </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.fusesource.jansi</groupId>
+        <artifactId>jansi</artifactId>
+        <version>1.11</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

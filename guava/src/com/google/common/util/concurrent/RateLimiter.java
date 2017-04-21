@@ -269,9 +269,9 @@ public abstract class RateLimiter {
   @CanIgnoreReturnValue
   public double acquire(int permits) {
     long microsToWait = reserve(permits);
-    System.out.println(Thread.currentThread().getName() + "开始执行，睡眠时间：" + microsToWait + "微秒");
+    //System.out.println(Thread.currentThread().getName() + "开始执行，睡眠时间：" + microsToWait + "微秒");
     stopwatch.sleepMicrosUninterruptibly(microsToWait);
-    System.out.println(Thread.currentThread().getName() + "睡眠结束，继续执行");
+    //System.out.println(Thread.currentThread().getName() + "睡眠结束，继续执行");
     return 1.0 * microsToWait / SECONDS.toMicros(1L);
   }
 

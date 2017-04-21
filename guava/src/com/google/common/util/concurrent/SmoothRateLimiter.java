@@ -396,7 +396,7 @@ abstract class SmoothRateLimiter extends RateLimiter {
         this.nextFreeTicketMicros = LongMath.saturatedAdd(nextFreeTicketMicros, waitMicros);
         //计算消耗后的令牌数，有可能变成0
         this.storedPermits -= storedPermitsToSpend;
-        System.out.println("reserveEarliestAvailable方法==>" + "storedPermits:" + storedPermits + ",nextFreeTicketMicros:" + nextFreeTicketMicros);
+        //System.out.println("reserveEarliestAvailable方法==>" + "storedPermits:" + storedPermits + ",nextFreeTicketMicros:" + nextFreeTicketMicros);
         return returnValue;
     }
 
@@ -422,14 +422,14 @@ abstract class SmoothRateLimiter extends RateLimiter {
     void resync(long nowMicros) {
         // if nextFreeTicket is in the past, resync to now
         // 初始化时，nextFreeTicketMicros为0.0
-        System.out.println("resync方法==>" + "nowMicros:" + nowMicros + ",nextFreeTicketMicros:" + nextFreeTicketMicros);
+        //System.out.println("resync方法==>" + "nowMicros:" + nowMicros + ",nextFreeTicketMicros:" + nextFreeTicketMicros);
         if (nowMicros > nextFreeTicketMicros) {
             //这个是用来计算从上一次时间到现在，应该产生的令牌数量
             //初始化时，这个计算表达式为：double newPermits = (nowMicros - 0.0) / 0.0，结果为Infinity无限大
             double newPermits = (nowMicros - nextFreeTicketMicros) / coolDownIntervalMicros();
             storedPermits = min(maxPermits, storedPermits + newPermits);
             nextFreeTicketMicros = nowMicros;
-            System.out.println("resync方法==>" + "newPermits:" + newPermits + ",storedPermits:" + storedPermits + ",nextFreeTicketMicros:" + nextFreeTicketMicros);
+            //System.out.println("resync方法==>" + "newPermits:" + newPermits + ",storedPermits:" + storedPermits + ",nextFreeTicketMicros:" + nextFreeTicketMicros);
         }
     }
 }

@@ -21,7 +21,7 @@ public class RateLimitExample {
         DataService dataService = new DataService();
         dataService.startLogPrint();
 
-        RateLimiter limiter = RateLimiter.create(100);
+        RateLimiter limiter = RateLimiter.create(10);
         //CustomLimiter limiter = new CustomLimiter(500);
         for (int i = 0; i < count; i++) {
             service.execute(new RequestRunner(dataService, limiter));

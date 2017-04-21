@@ -10,6 +10,6 @@ public class limiterInitExample {
 
     public static void main(String[] args) {
         //RateLimiter limiter = RateLimiter.create(10);
-        System.out.println(123.3 / 2);
+        System.out.println(123.3 / 0.0);
     }
 }

@@ -14,12 +14,13 @@
 
 package com.google.common.util.concurrent;
 
-import static java.lang.Math.min;
-import static java.util.concurrent.TimeUnit.SECONDS;
-
 import com.google.common.annotations.GwtIncompatible;
 import com.google.common.math.LongMath;
+
 import java.util.concurrent.TimeUnit;
+
+import static java.lang.Math.min;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 @GwtIncompatible
 abstract class SmoothRateLimiter extends RateLimiter {
@@ -138,260 +139,294 @@ abstract class SmoothRateLimiter extends RateLimiter {
    * we would only increase it for arrivals _later_ than the expected one second.
    */
 
-  /**
-   * This implements the following function where coldInterval = coldFactor * stableInterval.
-   *
-   * <pre>
-   *          ^ throttling
-   *          |
-   *    cold  +                  /
-   * interval |                 /.
-   *          |                / .
-   *          |               /  .   ← "warmup period" is the area of the trapezoid between
-   *          |              /   .     thresholdPermits and maxPermits
-   *          |             /    .
-   *          |            /     .
-   *          |           /      .
-   *   stable +----------/  WARM .
-   * interval |          .   UP  .
-   *          |          . PERIOD.
-   *          |          .       .
-   *        0 +----------+-------+--------------→ storedPermits
-   *          0 thresholdPermits maxPermits
-   * </pre>
-   *
-   * Before going into the details of this particular function, let's keep in mind the basics:
-   *
-   * <ol>
-   *   <li>The state of the RateLimiter (storedPermits) is a vertical line in this figure.
-   *   <li>When the RateLimiter is not used, this goes right (up to maxPermits)
-   *   <li>When the RateLimiter is used, this goes left (down to zero), since if we have
-   *       storedPermits, we serve from those first
-   *   <li>When _unused_, we go right at a constant rate! The rate at which we move to the right is
-   *       chosen as maxPermits / warmupPeriod. This ensures that the time it takes to go from 0 to
-   *       maxPermits is equal to warmupPeriod.
-   *   <li>When _used_, the time it takes, as explained in the introductory class note, is equal to
-   *       the integral of our function, between X permits and X-K permits, assuming we want to
-   *       spend K saved permits.
-   * </ol>
-   *
-   * <p>In summary, the time it takes to move to the left (spend K permits), is equal to the area of
-   * the function of width == K.
-   *
-   * <p>Assuming we have saturated demand, the time to go from maxPermits to thresholdPermits is
-   * equal to warmupPeriod. And the time to go from thresholdPermits to 0 is warmupPeriod/2. (The
-   * reason that this is warmupPeriod/2 is to maintain the behavior of the original implementation
-   * where coldFactor was hard coded as 3.)
-   *
-   * <p>It remains to calculate thresholdsPermits and maxPermits.
-   *
-   * <ul>
-   *   <li>The time to go from thresholdPermits to 0 is equal to the integral of the function
-   *       between 0 and thresholdPermits. This is thresholdPermits * stableIntervals. By (5) it is
-   *       also equal to warmupPeriod/2. Therefore
-   *       <blockquote>
-   *       thresholdPermits = 0.5 * warmupPeriod / stableInterval
-   *       </blockquote>
-   *
-   *   <li>The time to go from maxPermits to thresholdPermits is equal to the integral of the
-   *       function between thresholdPermits and maxPermits. This is the area of the pictured
-   *       trapezoid, and it is equal to 0.5 * (stableInterval + coldInterval) * (maxPermits -
-   *       thresholdPermits). It is also equal to warmupPeriod, so
-   *       <blockquote>
-   *       maxPermits = thresholdPermits + 2 * warmupPeriod / (stableInterval + coldInterval)
-   *       </blockquote>
-   *
-   * </ul>
-   */
-  static final class SmoothWarmingUp extends SmoothRateLimiter {
-    private final long warmupPeriodMicros;
     /**
-     * The slope of the line from the stable interval (when permits == 0), to the cold interval
-     * (when permits == maxPermits)
+     * This implements the following function where coldInterval = coldFactor * stableInterval.
+     * <p>
+     * <pre>
+     *          ^ throttling
+     *          |
+     *    cold  +                  /
+     * interval |                 /.
+     *          |                / .
+     *          |               /  .   ← "warmup period" is the area of the trapezoid between
+     *          |              /   .     thresholdPermits and maxPermits
+     *          |             /    .
+     *          |            /     .
+     *          |           /      .
+     *   stable +----------/  WARM .
+     * interval |          .   UP  .
+     *          |          . PERIOD.
+     *          |          .       .
+     *        0 +----------+-------+--------------→ storedPermits
+     *          0 thresholdPermits maxPermits
+     * </pre>
+     * <p>
+     * Before going into the details of this particular function, let's keep in mind the basics:
+     * <p>
+     * <ol>
+     * <li>The state of the RateLimiter (storedPermits) is a vertical line in this figure.
+     * <li>When the RateLimiter is not used, this goes right (up to maxPermits)
+     * <li>When the RateLimiter is used, this goes left (down to zero), since if we have
+     * storedPermits, we serve from those first
+     * <li>When _unused_, we go right at a constant rate! The rate at which we move to the right is
+     * chosen as maxPermits / warmupPeriod. This ensures that the time it takes to go from 0 to
+     * maxPermits is equal to warmupPeriod.
+     * <li>When _used_, the time it takes, as explained in the introductory class note, is equal to
+     * the integral of our function, between X permits and X-K permits, assuming we want to
+     * spend K saved permits.
+     * </ol>
+     * <p>
+     * <p>In summary, the time it takes to move to the left (spend K permits), is equal to the area of
+     * the function of width == K.
+     * <p>
+     * <p>Assuming we have saturated demand, the time to go from maxPermits to thresholdPermits is
+     * equal to warmupPeriod. And the time to go from thresholdPermits to 0 is warmupPeriod/2. (The
+     * reason that this is warmupPeriod/2 is to maintain the behavior of the original implementation
+     * where coldFactor was hard coded as 3.)
+     * <p>
+     * <p>It remains to calculate thresholdsPermits and maxPermits.
+     * <p>
+     * <ul>
+     * <li>The time to go from thresholdPermits to 0 is equal to the integral of the function
+     * between 0 and thresholdPermits. This is thresholdPermits * stableIntervals. By (5) it is
+     * also equal to warmupPeriod/2. Therefore
+     * <blockquote>
+     * thresholdPermits = 0.5 * warmupPeriod / stableInterval
+     * </blockquote>
+     * <p>
+     * <li>The time to go from maxPermits to thresholdPermits is equal to the integral of the
+     * function between thresholdPermits and maxPermits. This is the area of the pictured
+     * trapezoid, and it is equal to 0.5 * (stableInterval + coldInterval) * (maxPermits -
+     * thresholdPermits). It is also equal to warmupPeriod, so
+     * <blockquote>
+     * maxPermits = thresholdPermits + 2 * warmupPeriod / (stableInterval + coldInterval)
+     * </blockquote>
+     * <p>
+     * </ul>
      */
-    private double slope;
-    private double thresholdPermits;
-    private double coldFactor;
+    static final class SmoothWarmingUp extends SmoothRateLimiter {
+        private final long warmupPeriodMicros;
+        /**
+         * The slope of the line from the stable interval (when permits == 0), to the cold interval
+         * (when permits == maxPermits)
+         */
+        private double slope;
+        private double thresholdPermits;
+        private double coldFactor;
 
-    SmoothWarmingUp(
-        SleepingStopwatch stopwatch, long warmupPeriod, TimeUnit timeUnit, double coldFactor) {
-      super(stopwatch);
-      this.warmupPeriodMicros = timeUnit.toMicros(warmupPeriod);
-      this.coldFactor = coldFactor;
+        SmoothWarmingUp(
+                SleepingStopwatch stopwatch, long warmupPeriod, TimeUnit timeUnit, double coldFactor) {
+            super(stopwatch);
+            this.warmupPeriodMicros = timeUnit.toMicros(warmupPeriod);
+            this.coldFactor = coldFactor;
+        }
+
+        @Override
+        void doSetRate(double permitsPerSecond, double stableIntervalMicros) {
+            double oldMaxPermits = maxPermits;
+            double coldIntervalMicros = stableIntervalMicros * coldFactor;
+            thresholdPermits = 0.5 * warmupPeriodMicros / stableIntervalMicros;
+            maxPermits =
+                    thresholdPermits + 2.0 * warmupPeriodMicros / (stableIntervalMicros + coldIntervalMicros);
+            slope = (coldIntervalMicros - stableIntervalMicros) / (maxPermits - thresholdPermits);
+            if (oldMaxPermits == Double.POSITIVE_INFINITY) {
+                // if we don't special-case this, we would get storedPermits == NaN, below
+                storedPermits = 0.0;
+            } else {
+                storedPermits =
+                        (oldMaxPermits == 0.0)
+                                ? maxPermits // initial state is cold
+                                : storedPermits * maxPermits / oldMaxPermits;
+            }
+        }
+
+        @Override
+        long storedPermitsToWaitTime(double storedPermits, double permitsToTake) {
+            double availablePermitsAboveThreshold = storedPermits - thresholdPermits;
+            long micros = 0;
+            // measuring the integral on the right part of the function (the climbing line)
+            if (availablePermitsAboveThreshold > 0.0) {
+                double permitsAboveThresholdToTake = min(availablePermitsAboveThreshold, permitsToTake);
+                // TODO(cpovirk): Figure out a good name for this variable.
+                double length = permitsToTime(availablePermitsAboveThreshold)
+                        + permitsToTime(availablePermitsAboveThreshold - permitsAboveThresholdToTake);
+                micros = (long) (permitsAboveThresholdToTake * length / 2.0);
+                permitsToTake -= permitsAboveThresholdToTake;
+            }
+            // measuring the integral on the left part of the function (the horizontal line)
+            micros += (stableIntervalMicros * permitsToTake);
+            return micros;
+        }
+
+        private double permitsToTime(double permits) {
+            return stableIntervalMicros + permits * slope;
+        }
+
+        @Override
+        double coolDownIntervalMicros() {
+            return warmupPeriodMicros / maxPermits;
+        }
+    }
+
+    /**
+     * This implements a "bursty" RateLimiter, where storedPermits are translated to zero throttling.
+     * The maximum number of permits that can be saved (when the RateLimiter is unused) is defined in
+     * terms of time, in this sense: if a RateLimiter is 2qps, and this time is specified as 10
+     * seconds, we can save up to 2 * 10 = 20 permits.
+     * 使用的是令牌桶算法
+     */
+    static final class SmoothBursty extends SmoothRateLimiter {
+        /**
+         * The work (permits) of how many seconds can be saved up if this RateLimiter is unused?
+         */
+        final double maxBurstSeconds;
+
+        SmoothBursty(SleepingStopwatch stopwatch, double maxBurstSeconds) {
+            super(stopwatch);
+            this.maxBurstSeconds = maxBurstSeconds;
+        }
+
+        @Override
+        void doSetRate(double permitsPerSecond, double stableIntervalMicros) {
+            double oldMaxPermits = this.maxPermits;
+            maxPermits = maxBurstSeconds * permitsPerSecond;
+            if (oldMaxPermits == Double.POSITIVE_INFINITY) {
+                // if we don't special-case this, we would get storedPermits == NaN, below
+                storedPermits = maxPermits;
+            } else {
+                storedPermits =
+                        (oldMaxPermits == 0.0)
+                                ? 0.0 // initial state
+                                : storedPermits * maxPermits / oldMaxPermits;
+            }
+        }
+
+        @Override
+        long storedPermitsToWaitTime(double storedPermits, double permitsToTake) {
+            return 0L;
+        }
+
+        @Override
+        double coolDownIntervalMicros() {
+            return stableIntervalMicros;
+        }
+    }
+
+    /**
+     * The currently stored permits.
+     */
+    double storedPermits;
+
+    /**
+     * The maximum number of stored permits.
+     */
+    double maxPermits;
+
+    /**
+     * The interval between two unit requests, at our stable rate. E.g., a stable rate of 5 permits
+     * per second has a stable interval of 200ms.
+     */
+    double stableIntervalMicros;
+
+    /**
+     * The time when the next request (no matter its size) will be granted. After granting a request,
+     * this is pushed further in the future. Large requests push this further than small requests.
+     */
+    private long nextFreeTicketMicros = 0L; // could be either in the past or future
+
+    private SmoothRateLimiter(SleepingStopwatch stopwatch) {
+        super(stopwatch);
+    }
+
+    /**
+     * 设置属性
+     *
+     * @param permitsPerSecond 每秒钟限制令牌
+     * @param nowMicros        从stopwatch启动至现在的微秒数
+     */
+    @Override
+    final void doSetRate(double permitsPerSecond, long nowMicros) {
+        resync(nowMicros);
+        //计算生产令牌的时间间隔
+        double stableIntervalMicros = SECONDS.toMicros(1L) / permitsPerSecond;
+        this.stableIntervalMicros = stableIntervalMicros;
+        doSetRate(permitsPerSecond, stableIntervalMicros);
+    }
+
+    abstract void doSetRate(double permitsPerSecond, double stableIntervalMicros);
+
+    @Override
+    final double doGetRate() {
+        return SECONDS.toMicros(1L) / stableIntervalMicros;
     }
 
     @Override
-    void doSetRate(double permitsPerSecond, double stableIntervalMicros) {
-      double oldMaxPermits = maxPermits;
-      double coldIntervalMicros = stableIntervalMicros * coldFactor;
-      thresholdPermits = 0.5 * warmupPeriodMicros / stableIntervalMicros;
-      maxPermits =
-          thresholdPermits + 2.0 * warmupPeriodMicros / (stableIntervalMicros + coldIntervalMicros);
-      slope = (coldIntervalMicros - stableIntervalMicros) / (maxPermits - thresholdPermits);
-      if (oldMaxPermits == Double.POSITIVE_INFINITY) {
-        // if we don't special-case this, we would get storedPermits == NaN, below
-        storedPermits = 0.0;
-      } else {
-        storedPermits =
-            (oldMaxPermits == 0.0)
-                ? maxPermits // initial state is cold
-                : storedPermits * maxPermits / oldMaxPermits;
-      }
+    final long queryEarliestAvailable(long nowMicros) {
+        return nextFreeTicketMicros;
     }
 
+    /**
+     * 当前方法的功能如下：
+     * 1、重算storedPermits和nextFreeTicketMicros
+     * 1.1、首先根据当前的微秒数，计算出是否需要生产令牌，也就是重新计算当前存储的令牌数storedPermits
+     * 1.2、nextFreeTicketMicros赋值为当前微秒数
+     * 2、重算storedPermits和nextFreeTicketMicros
+     * 2.1、若请求令牌数大于当前存储令牌数，则计算nextFreeTicketMicros为下一次存在可用令牌的时间
+     * 2.2、当前存储令牌减去请求的令牌数
+     *
+     * @param requiredPermits
+     * @param nowMicros
+     * @return
+     */
     @Override
-    long storedPermitsToWaitTime(double storedPermits, double permitsToTake) {
-      double availablePermitsAboveThreshold = storedPermits - thresholdPermits;
-      long micros = 0;
-      // measuring the integral on the right part of the function (the climbing line)
-      if (availablePermitsAboveThreshold > 0.0) {
-        double permitsAboveThresholdToTake = min(availablePermitsAboveThreshold, permitsToTake);
-        // TODO(cpovirk): Figure out a good name for this variable.
-        double length = permitsToTime(availablePermitsAboveThreshold)
-                + permitsToTime(availablePermitsAboveThreshold - permitsAboveThresholdToTake);
-        micros = (long) (permitsAboveThresholdToTake * length / 2.0);
-        permitsToTake -= permitsAboveThresholdToTake;
-      }
-      // measuring the integral on the left part of the function (the horizontal line)
-      micros += (stableIntervalMicros * permitsToTake);
-      return micros;
+    final long reserveEarliestAvailable(int requiredPermits, long nowMicros) {
+        resync(nowMicros);
+        long returnValue = nextFreeTicketMicros;
+        //请求的令牌数可能比当前存储的令牌数大，如果大则本次消耗的令牌为当前存储的令牌
+        double storedPermitsToSpend = min(requiredPermits, this.storedPermits);
+        //请求大于存储，则计算的结果为请求与存储的差额，否则为0
+        double freshPermits = requiredPermits - storedPermitsToSpend;
+        //请求大于存储，则计算结果为下一次有可用令牌的时间
+        long waitMicros =
+                //这个计算，SmoothBursty类一直返回0L
+                storedPermitsToWaitTime(this.storedPermits, storedPermitsToSpend)
+                        + (long) (freshPermits * stableIntervalMicros);
+
+        //计算下一次请求有可用令牌的时间，因为有可能前一次请求拿取了多余当时存储的令牌数，这就坑了下一次的操作，下一次操作必须等待
+        this.nextFreeTicketMicros = LongMath.saturatedAdd(nextFreeTicketMicros, waitMicros);
+        //计算消耗后的令牌数，有可能变成0
+        this.storedPermits -= storedPermitsToSpend;
+        return returnValue;
     }
 
-    private double permitsToTime(double permits) {
-      return stableIntervalMicros + permits * slope;
+    /**
+     * Translates a specified portion of our currently stored permits which we want to spend/acquire,
+     * into a throttling time. Conceptually, this evaluates the integral of the underlying function we
+     * use, for the range of [(storedPermits - permitsToTake), storedPermits].
+     * <p>
+     * <p>This always holds: {@code 0 <= permitsToTake <= storedPermits}
+     */
+    abstract long storedPermitsToWaitTime(double storedPermits, double permitsToTake);
+
+    /**
+     * Returns the number of microseconds during cool down that we have to wait to get a new permit.
+     */
+    abstract double coolDownIntervalMicros();
+
+    /**
+     * Updates {@code storedPermits} and {@code nextFreeTicketMicros} based on the current time.
+     * 在初始化时，设置storedPermits为0，nextFreetTicketMicros为当前微秒时间
+     * 在acquire令牌时，也会首先调用此方法，用于设置storedPermits和nextFreeTicketMicros
+     */
+    void resync(long nowMicros) {
+        // if nextFreeTicket is in the past, resync to now
+        // 初始化时，nextFreeTicketMicros为0.0
+        if (nowMicros > nextFreeTicketMicros) {
+            //这个是用来计算从上一次时间到现在，应该产生的令牌数量
+            //初始化时，这个计算表达式为：double newPermits = (nowMicros - 0.0) / 0.0，结果为Infinity无限大
+            double newPermits = (nowMicros - nextFreeTicketMicros) / coolDownIntervalMicros();
+            storedPermits = min(maxPermits, storedPermits + newPermits);
+            nextFreeTicketMicros = nowMicros;
+        }
     }
-
-    @Override
-    double coolDownIntervalMicros() {
-      return warmupPeriodMicros / maxPermits;
-    }
-  }
-
-  /**
-   * This implements a "bursty" RateLimiter, where storedPermits are translated to zero throttling.
-   * The maximum number of permits that can be saved (when the RateLimiter is unused) is defined in
-   * terms of time, in this sense: if a RateLimiter is 2qps, and this time is specified as 10
-   * seconds, we can save up to 2 * 10 = 20 permits.
-   */
-  static final class SmoothBursty extends SmoothRateLimiter {
-    /** The work (permits) of how many seconds can be saved up if this RateLimiter is unused? */
-    final double maxBurstSeconds;
-
-    SmoothBursty(SleepingStopwatch stopwatch, double maxBurstSeconds) {
-      super(stopwatch);
-      this.maxBurstSeconds = maxBurstSeconds;
-    }
-
-    @Override
-    void doSetRate(double permitsPerSecond, double stableIntervalMicros) {
-      double oldMaxPermits = this.maxPermits;
-      maxPermits = maxBurstSeconds * permitsPerSecond;
-      if (oldMaxPermits == Double.POSITIVE_INFINITY) {
-        // if we don't special-case this, we would get storedPermits == NaN, below
-        storedPermits = maxPermits;
-      } else {
-        storedPermits =
-            (oldMaxPermits == 0.0)
-                ? 0.0 // initial state
-                : storedPermits * maxPermits / oldMaxPermits;
-      }
-    }
-
-    @Override
-    long storedPermitsToWaitTime(double storedPermits, double permitsToTake) {
-      return 0L;
-    }
-
-    @Override
-    double coolDownIntervalMicros() {
-      return stableIntervalMicros;
-    }
-  }
-
-  /**
-   * The currently stored permits.
-   */
-  double storedPermits;
-
-  /**
-   * The maximum number of stored permits.
-   */
-  double maxPermits;
-
-  /**
-   * The interval between two unit requests, at our stable rate. E.g., a stable rate of 5 permits
-   * per second has a stable interval of 200ms.
-   */
-  double stableIntervalMicros;
-
-  /**
-   * The time when the next request (no matter its size) will be granted. After granting a request,
-   * this is pushed further in the future. Large requests push this further than small requests.
-   */
-  private long nextFreeTicketMicros = 0L; // could be either in the past or future
-
-  private SmoothRateLimiter(SleepingStopwatch stopwatch) {
-    super(stopwatch);
-  }
-
-  @Override
-  final void doSetRate(double permitsPerSecond, long nowMicros) {
-    resync(nowMicros);
-    double stableIntervalMicros = SECONDS.toMicros(1L) / permitsPerSecond;
-    this.stableIntervalMicros = stableIntervalMicros;
-    doSetRate(permitsPerSecond, stableIntervalMicros);
-  }
-
-  abstract void doSetRate(double permitsPerSecond, double stableIntervalMicros);
-
-  @Override
-  final double doGetRate() {
-    return SECONDS.toMicros(1L) / stableIntervalMicros;
-  }
-
-  @Override
-  final long queryEarliestAvailable(long nowMicros) {
-    return nextFreeTicketMicros;
-  }
-
-  @Override
-  final long reserveEarliestAvailable(int requiredPermits, long nowMicros) {
-    resync(nowMicros);
-    long returnValue = nextFreeTicketMicros;
-    double storedPermitsToSpend = min(requiredPermits, this.storedPermits);
-    double freshPermits = requiredPermits - storedPermitsToSpend;
-    long waitMicros =
-        storedPermitsToWaitTime(this.storedPermits, storedPermitsToSpend)
-            + (long) (freshPermits * stableIntervalMicros);
-
-    this.nextFreeTicketMicros = LongMath.saturatedAdd(nextFreeTicketMicros, waitMicros);
-    this.storedPermits -= storedPermitsToSpend;
-    return returnValue;
-  }
-
-  /**
-   * Translates a specified portion of our currently stored permits which we want to spend/acquire,
-   * into a throttling time. Conceptually, this evaluates the integral of the underlying function we
-   * use, for the range of [(storedPermits - permitsToTake), storedPermits].
-   *
-   * <p>This always holds: {@code 0 <= permitsToTake <= storedPermits}
-   */
-  abstract long storedPermitsToWaitTime(double storedPermits, double permitsToTake);
-
-  /**
-   * Returns the number of microseconds during cool down that we have to wait to get a new permit.
-   */
-  abstract double coolDownIntervalMicros();
-
-  /**
-   * Updates {@code storedPermits} and {@code nextFreeTicketMicros} based on the current time.
-   */
-  void resync(long nowMicros) {
-    // if nextFreeTicket is in the past, resync to now
-    if (nowMicros > nextFreeTicketMicros) {
-      double newPermits = (nowMicros - nextFreeTicketMicros) / coolDownIntervalMicros();
-      storedPermits = min(maxPermits, storedPermits + newPermits);
-      nextFreeTicketMicros = nowMicros;
-    }
-  }
 }

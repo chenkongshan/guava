@@ -351,6 +351,7 @@ abstract class SmoothRateLimiter extends RateLimiter {
         double stableIntervalMicros = SECONDS.toMicros(1L) / permitsPerSecond;
         this.stableIntervalMicros = stableIntervalMicros;
         doSetRate(permitsPerSecond, stableIntervalMicros);
+        System.out.println("stableIntervalMicros:" + stableIntervalMicros);
     }
 
     abstract void doSetRate(double permitsPerSecond, double stableIntervalMicros);
@@ -391,11 +392,11 @@ abstract class SmoothRateLimiter extends RateLimiter {
                 //这个计算，SmoothBursty类一直返回0L
                 storedPermitsToWaitTime(this.storedPermits, storedPermitsToSpend)
                         + (long) (freshPermits * stableIntervalMicros);
-
         //计算下一次请求有可用令牌的时间，因为有可能前一次请求拿取了多余当时存储的令牌数，这就坑了下一次的操作，下一次操作必须等待
         this.nextFreeTicketMicros = LongMath.saturatedAdd(nextFreeTicketMicros, waitMicros);
         //计算消耗后的令牌数，有可能变成0
         this.storedPermits -= storedPermitsToSpend;
+        System.out.println("reserveEarliestAvailable方法==>" + "storedPermits:" + storedPermits + ",nextFreeTicketMicros:" + nextFreeTicketMicros);
         return returnValue;
     }
 
@@ -421,12 +422,14 @@ abstract class SmoothRateLimiter extends RateLimiter {
     void resync(long nowMicros) {
         // if nextFreeTicket is in the past, resync to now
         // 初始化时，nextFreeTicketMicros为0.0
+        System.out.println("resync方法==>" + "nowMicros:" + nowMicros + ",nextFreeTicketMicros:" + nextFreeTicketMicros);
         if (nowMicros > nextFreeTicketMicros) {
             //这个是用来计算从上一次时间到现在，应该产生的令牌数量
             //初始化时，这个计算表达式为：double newPermits = (nowMicros - 0.0) / 0.0，结果为Infinity无限大
             double newPermits = (nowMicros - nextFreeTicketMicros) / coolDownIntervalMicros();
             storedPermits = min(maxPermits, storedPermits + newPermits);
             nextFreeTicketMicros = nowMicros;
+            System.out.println("resync方法==>" + "newPermits:" + newPermits + ",storedPermits:" + storedPermits + ",nextFreeTicketMicros:" + nextFreeTicketMicros);
         }
     }
 }

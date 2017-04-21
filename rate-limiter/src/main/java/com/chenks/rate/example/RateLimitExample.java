@@ -28,7 +28,7 @@ public class RateLimitExample {
         }
 
 
-        TimeUnit.SECONDS.sleep(5);
+        TimeUnit.SECONDS.sleep(2);
         service.shutdownNow();
         dataService.stopLogPrint();
         System.exit(0);
